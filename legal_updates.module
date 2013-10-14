@@ -1,0 +1,522 @@
+<?php
+/**
+ * @file
+ * Legal Module extra functionality.
+ */
+
+/**
+ * Legel Update module form altaretion using HOOK_form_alter();
+ */
+function legal_updates_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+  global $language;
+  if ($form_id == 'legal_administration') {
+    $conditions = legal_update_get_conditions();
+    $form['extrasfields'] = array(
+      '#type'        => 'fieldset',
+      '#title'       => t('Additional Fields'),
+      '#description' => t('Each field will be shown as a textfield which the user must fill to register.'),
+      '#weight'      => -1,
+      '#collapsible' => TRUE,
+      '#collapsed'   => TRUE,
+      '#tree'        => TRUE,
+    );
+    
+    $extras_count = ((count($conditions['extrasfields']) < 4) ? 4 : count($conditions['extrasfields']));
+    for ($counter = 1; $counter <= $extras_count; $counter++) {
+      $extrasfields = isset($conditions['extrasfields']['extrasfields-' . $counter]) ? $conditions['extrasfields']['extrasfields-' . $counter] : '';
+      $form['extrasfields']['extrasfields-' . $counter] = array(
+        '#type'          => 'textarea',
+        '#title'         => t('Label'),
+        '#default_value' => $extrasfields,
+      );
+      // Overide extra checkboxes.getip
+      if (!empty($conditions['extrasfields']['extrasfields-' . $counter])) {
+        $form['legal']['extrasfields-' . $counter] = array(
+          '#type'          => 'textfield',
+          '#title'         => filter_xss_admin($extrasfields),
+          '#default_value' => '',
+          '#weight'        => 2,
+          '#required'      => FALSE,
+        );
+      }
+    }
+    $form['#submit'][] = 'legal_updates_save_data';
+    $form['#validate'][] = 'legal_updates_legal_administration_validate';
+  }
+  if ($form_id == 'legal_login') {
+    $legal_account = legal_get_accept(arg(1));
+    $conditions1 = legal_get_conditions($language->language);
+    if (empty($conditions1['conditions'])) {
+      return;
+    }
+
+    // if no version has been accepted yet, get version with current language revision
+    if (empty($legal_account['version'])) {
+      $conditions = legal_update_get_conditions($language->language);
+      // no conditions set yet
+      if (empty($conditions1['conditions'])) return;
+    }
+    else { // get version / revision of last accepted language
+
+      $conditions = legal_update_get_conditions($legal_account['language']);
+      // no conditions set yet
+      if (empty($conditions1['conditions'])) return;
+
+      // Check latest version of T&C has been accepted.
+      $accepted = legal_version_check($uid, $conditions['version'], $conditions['revision'], $legal_account);
+
+      if ($accepted) {
+        return;
+      }
+    }
+    if (!empty($conditions['extrasfields'])) {
+      $form['extrasfields'] = array(
+      '#type'        => 'fieldset',
+      '#collapsed'   => FALSE,
+      '#tree'        => TRUE,
+      );
+      $form['ipaddress'] = array(
+        '#type' => 'hidden',
+        '#default_value' => getip(),
+      );
+      $form['extrasfields']['ipaddress_value'] = array(
+        '#markup' => '<label for="ip-address-div">IP Address</label><div class="ip-address-div">' . getip() . '</div>',
+      );
+      foreach ($conditions['extrasfields'] as $key => $label) {
+        if (!empty($label)) {
+          $form['extrasfields'][$key] = array(
+            '#type'          => 'textfield',
+            '#title'         => filter_xss_admin($label),
+            '#size' => 60,
+            '#maxlength' => 128, 
+            '#default_value' => '',
+            '#weight'        => 2,
+            '#required'      => TRUE,
+          );
+        }
+      }
+    }
+    
+    $form['#submit'][] = 'legal_update_login_submit';
+  }
+  if ($form_id == 'user_register_form') {
+    $conditions = legal_update_get_conditions($language->language);
+    // Do nothing if there's no Terms and Conditions text set.
+    $conditions1 = legal_get_conditions($language->language);
+    if (empty($conditions1['conditions'])) {
+      return;
+    }
+    if (!empty($conditions['extrasfields'])) {
+      $form['extrasfields'] = array(
+        '#type'        => 'fieldset',
+        '#collapsed'   => FALSE,
+        '#weight' => 30,
+        '#tree' => TRUE,
+      );
+      $form['ipaddress'] = array(
+        '#type' => 'hidden',
+        '#default_value' => getip(),
+      );
+      $form['extrasfields']['ipaddress_value'] = array(
+        '#markup' => '<label for="ip-address-div">IP Address</label><div class="ip-address-div">' . getip() . '</div>',
+      );
+      
+      foreach ($conditions['extrasfields'] as $key => $label) {
+        if (!empty($label)) {
+          $form['extrasfields'][$key] = array(
+            '#type' => 'textfield',
+            '#title' => filter_xss_admin($label),
+            '#size' => 60,
+            '#maxlength' => 128, 
+            '#default_value' => '',
+            '#weight' => 2,
+            '#required' => TRUE,
+          );
+        }
+      }
+    }
+    if (!empty($user->uid)) {
+      if (is_array($conditions['extrasfields'])) {
+        foreach ($conditions['extrasfields'] as $key => $label) {
+          if (!empty($label)) {
+            $form['extrasfields'][$key]['#attributes'] = array('disabled' => 'disabled');
+            $form['extrasfields'][$key]['#required']   = FALSE;
+          }
+        }
+      }
+    }
+  }
+  if ($form_id == 'user_profile_form') {
+    $account = $form['#user'];
+    $conditions = legal_update_get_conditions($language->language);
+	$accepted = legal_version_check($account->uid, $conditions['version'], $conditions['revision'], $legal_account);
+    // Do nothing if there's no Terms and Conditions text set.
+    $conditions1 = legal_get_conditions($language->language);
+    if (empty($conditions1['conditions'])) {
+      return;
+    }
+    if (!empty($conditions['extrasfields'])) {
+      $form['extrasfields'] = array(
+        '#type'        => 'fieldset',
+        '#collapsed'   => FALSE,
+        '#weight' => 30,
+        '#tree'        => TRUE,
+      );
+      foreach ($conditions['extrasfields'] as $key => $label) {
+        if (!empty($label)) {
+          $form['extrasfields'][$key] = array(
+            '#type' => 'textfield',
+            '#title' => filter_xss_admin($label),
+            '#size' => 60,
+            '#maxlength' => 128, 
+            '#default_value' => '',
+            '#weight' => 2,
+            '#required' => TRUE,
+          );
+        }
+      }
+    }
+    if ($accepted === TRUE) {
+      $values = legal_update_get_conditions_data($form['#user']->uid);
+	  $form['ipaddress'] = array(
+        '#type' => 'hidden',
+        '#default_value' => getip(),
+      );
+      $form['extrasfields']['ipaddress_value'] = array(
+        '#markup' => '<label for="ip-address-div">IP Address</label><div class="ip-address-div">' . $values['ipaddress'] . '</div>',
+      );
+      $form['extrasfields']['legal_accept']['#value'] = 1;
+      if (!empty($conditions['extrasfields'])) {
+        foreach ($conditions['extrasfields'] as $key => $label) {
+          if (!empty($label)) {
+            $form['extrasfields'][$key]['#value'] = $values['extrasfields'][$key];
+          }
+        }
+      }
+    }
+    
+    // Disable checkbox if:
+    //  - user is not account owner;
+    //  - latest T&C has already been accepted.
+    if ($account->uid != $user->uid || $accepted == TRUE) {
+	  $form['ipaddress'] = array(
+        '#type' => 'hidden',
+        '#default_value' => $values['ipaddress'],
+      );
+      if (is_array($conditions['extrasfields'])) {
+        foreach ($conditions['extrasfields'] as $key => $label) {
+          if (!empty($label)) {
+            $form['extrasfields'][$key]['#attributes'] = array('disabled' => 'disabled');
+            $form['extrasfields'][$key]['#required']   = FALSE;
+          }
+        }
+      }
+    }
+    
+    // Not required if user is not account owner.
+    if ($account->uid != $user->uid) {
+	  if (is_array($conditions['extrasfields'])) {
+        foreach ($conditions['extrasfields'] as $key => $label) {
+          if (!empty($label)) {
+            $form['extrasfields'][$key]['#required'] = FALSE;
+            $form['extrasfields'][$key]['#required'] = FALSE;
+          }
+        }
+      }
+    }
+    
+    // Enable account owner to accept.
+    if ($account->uid == $user->uid && $accepted != TRUE) {
+      
+      if (!empty($conditions['extrasfields'])) {
+        reset($conditions['extrasfields']);
+        
+        foreach ($conditions['extrasfields'] as $key => $label) {
+          if (!empty($label)) {
+            $form['extrasfields'][$key]['#default_value'] = isset($edit[$key]) ? $edit[$key] : '';
+            $form['extrasfields'][$key]['#required']      = TRUE;
+          }
+        }
+      }
+    }
+  } 
+}
+/**
+ * legal administration custom form validate
+ */
+function legal_updates_legal_administration_validate(&$form, &$form_state) {
+  $values = $form_state['values'];
+  if (legal_conditions_updated($form_state['values'])) {
+    $form_state['values']['legal_conditions_change'] = 1;
+  }
+  else {
+    $form_state['values']['legal_conditions_change'] = 0;
+  }
+  $version = legal_version($values['version_handling'], $values['language']);
+  $form_state['values']['legel_version'] = $version['version'];
+  $form_state['values']['legel_revision'] = $version['revision'];
+}
+/**
+ * Submit function for legal update
+ */
+function legal_updates_save_data(&$form, &$form_state) {
+  $values = $form_state['values'];
+  // Preview request, don't save anything.
+  if ($form_state['triggering_element']['#value'] == t('Preview')) {
+    return;
+  }
+  if (variable_get('legal_display', '0') != $values['display']) {
+    variable_set('legal_display', $values['display']);
+    drupal_set_message(t('Display setting has been saved.'));
+  }
+  $flag = 0;
+  // If new conditions are different from current permisions, enter in database.
+  if (legal_update_conditions_updated($values) || ($values['legal_conditions_change'] == 1)) {
+    if (legal_update_conditions_updated($values) && ($values['legal_conditions_change'] == 0)) {
+      db_insert('legal_conditions')
+        ->fields(array(
+        'version'    => $values['legel_version'],
+        'revision'   => $values['legel_revision'],
+        'language'   => $values['language'],
+        'conditions' => $values['conditions'],
+        'date'       => time(),
+        'extras'     => serialize($values['extras']),
+        'changes'    => $values['changes'],
+        ))
+        ->execute();
+    }
+    
+    db_insert('legal_updates_conditions')
+      ->fields(array(
+      'version'    => $values['legel_version'],
+      'revision'   => $values['legel_revision'],
+      'language'   => $values['language'],
+      'date'       => time(),
+      'changes'    => $values['changes'],
+      'extrasfields' => serialize($values['extrasfields']),
+    ))
+      ->execute();
+
+    drupal_set_message(t('Terms & Conditions have been saved.'));
+    $flag = 1;
+  }
+  if ($flag == 1) {
+    cache_clear_all();
+  }
+}
+/**
+ *
+ */
+function legal_update_login_submit($form, &$form_state) {
+  global $user;
+  $values = $form_state['values'];
+  legal_update_save_accept($user->uid, $values['version'], $values['revision'], $values['language'], $values['ipaddress'], $values['extrasfields']);
+}
+/**
+ * Function to store values of the extra fields
+ */
+function legal_update_save_accept($uid, $version, $revision, $language, $ipaddress, $extrafields = array()) {
+  $data = db_query('SELECT MAX(legal_id) as legal_id FROM {legal_accepted} WHERE uid = ' . $uid . '')->fetchObject();
+  db_insert('legal_updates_accepted')
+    ->fields(array(
+    'uid' => $uid,
+    'ipaddress ' => $ipaddress,
+    'extrasfields ' => serialize($extrafields),
+    'accepted' => time(),
+    'legal_id' => $data->legal_id,
+    'version' => $version,
+    'revision' => $revision,
+    ))
+    ->execute(); 
+}
+/**
+ * Function to get the extra fields
+ */
+function legal_update_get_conditions($language = NULL) {
+  $keys = array('tc_id', 'version', 'revision', 'date', 'extrasfields', 'changes');
+
+  if (!empty($language)) {
+    $result = db_select('legal_updates_conditions', 'lc')
+      ->fields('lc')
+      ->condition('language', $language)
+      ->orderBy('version', 'DESC')
+      ->orderBy('revision', 'DESC')
+      ->range(0, 1)
+      ->execute()
+      ->fetchAllAssoc('tc_id');
+    $result = (array)array_shift($result);
+  }
+  else {
+    $result = db_select('legal_updates_conditions', 'lc')
+      ->fields('lc')
+      ->orderBy('tc_id', 'DESC')
+      ->execute()
+      ->fetchAllAssoc('tc_id');
+    $result = (array)array_shift($result);
+  }
+  foreach ($keys as $key) {
+    $conditions[$key] = isset($result[$key]) ? $result[$key] : '';
+  }
+
+  $conditions['extrasfields'] = empty($conditions['extrasfields']) ? array() : unserialize($conditions['extrasfields']);
+  
+  return $conditions;
+}
+/**
+ * Function to get the extra fields
+ */
+function legal_update_get_conditions_data($uid, $language = NULL) {
+  $keys = array('extrasfields', 'ipaddress');
+  if (!empty($language)) {
+    $result = db_select('legal_updates_accepted', 'lc')
+      ->fields('lc')
+      ->condition('language', $language)
+	  ->condition('uid', $uid)
+      ->orderBy('legal_id', 'DESC')
+      ->range(0, 1)
+      ->execute()
+      ->fetchAllAssoc('legal_id');
+    $result = (array)array_shift($result);
+  }
+  else {
+    $result = db_select('legal_updates_accepted', 'lc')
+      ->fields('lc')
+	  ->condition('uid', $uid)
+      ->orderBy('legal_id', 'DESC')
+      ->execute()
+      ->fetchAllAssoc('legal_id');
+    $result = (array)array_shift($result);
+  }
+  foreach ($keys as $key) {
+    $conditions[$key] = isset($result[$key]) ? $result[$key] : '';
+  }
+
+  $conditions['extrasfields'] = empty($conditions['extrasfields']) ? array() : unserialize($conditions['extrasfields']);
+  
+  return $conditions;
+}
+/**
+ * Checking change in the values
+ */
+function legal_update_conditions_updated($new) {
+  $previous_same_language = legal_update_get_conditions($new['language']);
+  $previous = legal_update_get_conditions();
+  if (($previous_same_language['conditions'] != $new['conditions']) && ($previous['conditions'] != $new['conditions'])) {
+    return TRUE;
+  }
+
+  $count = count($new['extrasfields']);
+  for ($counter = 1; $counter <= $count; $counter++) {
+    $previous_same_language_extra = isset($previous_same_language['extrasfields']['extrasfields-' . $counter]) ? $previous_same_language['extrasfields']['extrasfields-' . $counter] : '';
+    $previous_extra = isset($previous['extrasfields']['extrasfields-' . $counter]) ? $previous['extrasfields']['extrasfields-' . $counter] : '';
+    if (($previous_same_language_extra != $new['extrasfields']['extrasfields-' . $counter]) && ($previous_extra != $new['extrasfields']['extrasfields-' . $counter])) {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+/**
+ * Implementation of hook_user_insert().
+ */
+function legal_updates_user_insert(&$edit, $account, $category) {
+  global $user;
+  global $language;
+
+  $conditions = legal_update_get_conditions($language->language);
+
+  if (empty($conditions['extrasfields'])) {
+    return;
+  }
+  // Record the accepted state before removing legal_accept from $edit.
+  $accepted  = isset($edit['extrasfields']) ? TRUE : FALSE;
+  $extrasfields = $edit['extrasfields'];
+  $ip_address = isset($edit['ipaddress']) ? $edit['ipaddress'] : ' ';
+  $edit['ipaddress'] = NULL;
+  foreach ($conditions['extrasfields'] as $key => $label) {
+    $edit['extrasfields'][$key] = NULL;
+  }
+
+  // Don't insert if user is already registered (administrator).
+  if (!empty($user->uid) || ($user->uid != 0)) {
+    return;
+  }
+
+  if ($accepted) {
+    legal_update_save_accept($account->uid, $conditions['version'], $conditions['revision'], $conditions['language'], $ip_address, $extrasfields);
+  }
+}
+
+/**
+ * Implements hook_user_update().
+ */
+function legal_updates_user_update(&$edit, $account, $category) {
+  global $user;
+  global $language;
+
+  // We only care about the account category.
+  if ($category != 'account') {
+    return;
+  }
+
+  $conditions = legal_update_get_conditions($language->language);
+
+  if (empty($conditions['conditions'])) {
+    return;
+  }
+
+  // Record the accepted state before removing legal_accept from $edit.
+  $accepted = isset($edit['extrasfields']) ? TRUE : FALSE;
+  $ip_address = isset($edit['ipaddress']) ? $edit['ipaddress'] : ' ';
+  $edit['ipaddress'] = NULL;
+  $extrasfields = $edit['extrasfields'];
+  foreach ($conditions['extrasfields'] as $key => $label) {
+    $edit['extrasfields'][$key] = NULL;
+  }
+
+  if ($account->uid != $user->uid) {
+    return;
+  }
+
+  // If already accepted skip data entry.
+  $previously_accepted = legal_version_check($account->uid, $conditions['version'], $conditions['revision']);
+
+  if ($previously_accepted === TRUE) {
+    return;
+  }
+
+  if ($accepted) {
+    legal_update_save_accept($account->uid, $conditions['version'], $conditions['revision'], $conditions['language'], $ip_address, $extrasfields);
+  }
+}
+/**
+ * Implements hook_views_api().
+ */
+function legal_updates_views_api() {
+  return array(
+    'api'  => 2,
+    'path' => drupal_get_path('module', 'legal_updates') . '/views',
+  );
+}
+/**
+ * Implements hook_views_handlers();
+ */
+function legal_updates_views_handlers() {
+  return array(
+    'info'     => array(
+      'path' => drupal_get_path('module', 'legal_updates') . '/views',
+    ),
+    'handlers' => array(
+      'legal_updates_views_handler_field_unserialized_list' => array(
+        'parent' => 'views_handler_field',
+      ),
+    ),
+  );
+}
+/**
+ * Function to get the ip address of the user
+ */
+function getip() {
+  return $_SERVER["REMOTE_ADDR"];
+}

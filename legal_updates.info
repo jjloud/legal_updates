@@ -1,0 +1,8 @@
+name = legal_updates
+description = custom module for legal updates
+core = 7.x
+
+files[] = legal_updates.module
+files[] = views/legal_updates_views_handler_field_unserialized_list.inc
+
+dependencies[] = legal

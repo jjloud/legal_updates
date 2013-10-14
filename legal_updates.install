@@ -1,0 +1,61 @@
+<?php
+
+/**
+ * @file
+ * Installation and update functions for the Legal Updates module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function legal_updates_schema() {
+  $schema['legal_updates_conditions'] = array(
+    'fields'      => array(
+      'tc_id'      => array('type' => 'serial', 'unsigned' => FALSE, 'not null' => TRUE, 'disp-width' => 10),
+      'version'    => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 11),
+      'revision'   => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 11),
+      'date'       => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 11),
+      'language'   => array(
+        'description' => t("TODO."),
+        'type'        => 'varchar',
+        'length'      => '12',
+        'not null'    => TRUE,
+        'default'     => ''
+      ),
+      'extrasfields'     => array('type' => 'text'),
+      'changes'    => array('type' => 'text'),
+    ),
+    'primary key' => array('tc_id'),
+  );
+
+  $schema['legal_updates_accepted'] = array(
+    'fields'      => array(
+      'id' => array('type' => 'serial', 'unsigned' => FALSE, 'not null' => TRUE, 'disp-width' => 10),
+      'legal_id' => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 11),
+      'extrasfields' => array('type' => 'text'),
+      'ipaddress' => array('type' => 'text'),
+      'uid'      => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 10),
+      'version'    => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 11),
+      'revision'   => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 11),
+      'accepted' => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 11),
+    ),
+    'indexes'     => array('uid' => array('uid')),
+    'primary key' => array('id'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function legal_updates_uninstall() {
+  variable_del('legal_updates_display');
+}
+
+/**
+ * Implements hook_update_last_removed().
+ */
+function legal_updates_update_last_removed() {
+  return 6003;
+}
